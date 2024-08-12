@@ -302,42 +302,6 @@ function M.update()
     vim.api.nvim_win_set_width(C.win, text_width + 2)
 end
 
-local post_hook = function(result)
-    if not result or not result.changes then
-        print(string.format("could not perform rename"))
-        return
-    end
-
-    local notification, entries = "", {}
-    local num_files, num_updates = 0, 0
-    for uri, edits in pairs(result.changes) do
-        num_files = num_files + 1
-        local bufnr = vim.uri_to_bufnr(uri)
-
-        for _, edit in ipairs(edits) do
-            local start_line = edit.range.start.line + 1
-            local line = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, start_line, false)[1]
-
-            num_updates = num_updates + 1
-            table.insert(entries, {
-                bufnr = bufnr,
-                lnum = start_line,
-                col = edit.range.start.character + 1,
-                text = line,
-            })
-        end
-
-        local short_uri = string.sub(vim.uri_to_fname(uri), #vim.fn.getcwd() + 2)
-        notification = notification .. string.format("made %d change(s) in %s\n", #edits, short_uri)
-    end
-
-    if num_files > 1 then
-        print(notification)
-        vim.fn.setqflist(entries, "r")
-        FeedKeys("<c-q>", "m")
-    end
-end
-
 local function show_success_message(result)
     local changed_instances = 0
     local changed_files = 0
@@ -349,13 +313,93 @@ local function show_success_message(result)
     end
 
     local message = string.format(
-        "Renamed %s instance%s in %s file%s",
+        "Renamed **%s** instance%s",
         changed_instances,
         changed_instances == 1 and "" or "s",
         changed_files,
         changed_files == 1 and "" or "s"
     )
     vim.notify(message)
+end
+
+local post_hook = function(result)
+    if not result then
+        print(string.format("could not perform rename"))
+        return
+    end
+    local notifications = {}
+    local entries = {}
+    local num_files, num_updates = 0, 0
+
+    -- 收集信息以用于对齐
+    local max_uri_length = 0
+    local max_edit_count_length = 0
+    local changes = {}
+
+    -- 遍历 result.changes
+    if result.changes then
+        for uri, edits in pairs(result.changes) do
+            num_files = num_files + 1
+            local bufnr = vim.uri_to_bufnr(uri)
+            local short_uri = string.sub(vim.uri_to_fname(uri), #vim.fn.getcwd() + 2)
+            max_uri_length = math.max(max_uri_length, #short_uri)
+            max_edit_count_length = math.max(max_edit_count_length, #tostring(#edits))
+
+            for _, edit in ipairs(edits) do
+                local start_line = edit.range.start.line + 1
+                local line = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, start_line, false)[1]
+                num_updates = num_updates + 1
+                table.insert(entries, {
+                    bufnr = bufnr,
+                    lnum = start_line,
+                    col = edit.range.start.character + 1,
+                    text = line,
+                })
+            end
+            table.insert(changes, { short_uri = short_uri, edit_count = #edits })
+        end
+    end
+
+    -- 遍历 result.documentChanges
+    if result.documentChanges then
+        for _, c in pairs(result.documentChanges) do
+            local edits = c.edits
+            local textDocument = c.textDocument
+            local uri = textDocument.uri
+            num_files = num_files + 1
+            local bufnr = vim.uri_to_bufnr(uri)
+            local short_uri = string.sub(vim.uri_to_fname(uri), #vim.fn.getcwd() + 2)
+            max_uri_length = math.max(max_uri_length, #short_uri)
+            max_edit_count_length = math.max(max_edit_count_length, #tostring(#edits))
+
+            for _, edit in ipairs(edits) do
+                local start_line = edit.range.start.line + 1
+                local line = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, start_line, false)[1]
+                num_updates = num_updates + 1
+                table.insert(entries, {
+                    bufnr = bufnr,
+                    lnum = start_line,
+                    col = edit.range.start.character + 1,
+                    text = line,
+                })
+            end
+            table.insert(changes, { short_uri = short_uri, edit_count = #edits })
+        end
+    end
+
+    -- 格式化通知信息
+    for i, change in ipairs(changes) do
+        local notification = string.format("- %-" .. max_uri_length .. "s: **%d**", change.short_uri, change.edit_count)
+        table.insert(notifications, notification)
+    end
+    table.insert(notifications, 1, " ")
+    vim.fn.setqflist(entries, "r")
+    if num_files > 1 then
+        vim.notify(table.concat(notifications, "\n"), vim.log.levels.INFO)
+        FeedKeys("<c-q>", "m")
+    else
+        show_success_message(result)
+    end
 end
 
 function M.submit()
@@ -376,7 +420,6 @@ function M.submit()
         local handler = C.client.handlers[lsp_methods.textDocument_rename]
             or vim.lsp.handlers[lsp_methods.textDocument_rename]
         handler(resp.err, resp.result, resp.context, resp.config)
-        show_success_message(resp.result)
         post_hook(resp.result)
     end
 
