@@ -85,7 +85,9 @@ local function references_handler(transaction_id)
         for _, loc in ipairs(result) do
             if vim.uri_to_bufnr(loc.uri) == C.doc_buf then
                 local range = loc.range
-                assert(range.start.line == range["end"].line)
+                if range.start.line ~= range["end"].line then
+                    goto continue
+                end
                 if range.start.line ~= pos.line then
                     -- on other line
                     table.insert(editing_ranges, loc.range)
@@ -97,6 +99,7 @@ local function references_handler(transaction_id)
                     table.insert(editing_ranges, loc.range)
                 end
             end
+            ::continue::
         end
 
         -- update window position
