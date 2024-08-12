@@ -338,6 +338,26 @@ local post_hook = function(result)
     end
 end
 
+local function show_success_message(result)
+    local changed_instances = 0
+    local changed_files = 0
+
+    local with_edits = result.documentChanges ~= nil
+    for _, change in pairs(result.documentChanges or result.changes) do
+        changed_instances = changed_instances + (with_edits and #change.edits or #change)
+        changed_files = changed_files + 1
+    end
+
+    local message = string.format(
+        "Renamed %s instance%s in %s file%s",
+        changed_instances,
+        changed_instances == 1 and "" or "s",
+        changed_files,
+        changed_files == 1 and "" or "s"
+    )
+    vim.notify(message)
+end
+
 function M.submit()
     local new_text = vim.api.nvim_buf_get_lines(C.buf, 0, 1, false)[1]
     local mode = vim.api.nvim_get_mode().mode
@@ -356,6 +376,7 @@ function M.submit()
         local handler = C.client.handlers[lsp_methods.textDocument_rename]
             or vim.lsp.handlers[lsp_methods.textDocument_rename]
         handler(resp.err, resp.result, resp.context, resp.config)
+        show_success_message(resp.result)
         post_hook(resp.result)
     end
 
