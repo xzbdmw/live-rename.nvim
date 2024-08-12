@@ -224,6 +224,8 @@ function M.rename(opts)
 		style = "minimal",
 		border = "none",
 	}
+	C.cursor = vim.api.nvim_win_get_cursor(0)
+	C.parent_win = vim.api.nvim_get_current_win()
 	C.win = vim.api.nvim_open_win(C.buf, false, win_opts)
 	vim.wo[C.win].wrap = true
 
@@ -368,6 +370,12 @@ function M.hide()
 	if C.buf and vim.api.nvim_buf_is_valid(C.buf) then
 		vim.api.nvim_buf_delete(C.buf, {})
 	end
+	if C.cursor == nil then
+		return
+	end
+	vim.api.nvim_win_set_cursor(C.parent_win, { C.cursor[1], C.cursor[2] + 1 })
+	vim.g.neovide_floating_z_height = 18
+	vim.g.neovide_cursor_animation_length = 0
 
 	-- reset context
 	C = {}
