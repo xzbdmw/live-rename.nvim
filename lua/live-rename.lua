@@ -230,6 +230,7 @@ function M.rename(opts)
     C.cursor = vim.api.nvim_win_get_cursor(0)
     C.parent_win = vim.api.nvim_get_current_win()
     C.win = vim.api.nvim_open_win(C.buf, false, win_opts)
+    vim.b[C.buf].rename = true
     vim.wo[C.win].wrap = true
 
     -- highlights and transparency
@@ -441,7 +442,7 @@ function M.hide()
         return
     end
     vim.api.nvim_win_set_cursor(C.parent_win, { C.cursor[1], C.cursor[2] + 1 })
-    vim.g.neovide_floating_z_height = 18
+    vim.g.neovide_floating_z_height = 5
     vim.g.neovide_cursor_animation_length = 0
 
     -- reset context
