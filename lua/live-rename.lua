@@ -145,6 +145,11 @@ function M.rename(opts)
     opts = opts or {}
 
     local cword = vim.fn.expand("<cword>")
+    if cword == "func" then
+        vim.lsp.buf.rename()
+        vim.g.neovide_floating_z_height = 5
+        return
+    end
     local text = opts.text or cword or ""
     local text_width = vim.fn.strdisplaywidth(text)
 
